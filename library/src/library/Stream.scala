@@ -148,12 +148,33 @@ class DispatcherReg[T <: Data](gen: T, n: Int) extends Module {
 
 }
 
-class Fork[T <: Data](gen: T, n: Int, synchronous: Boolean = false) extends Module {
+class Fork[T <: Data](gen: T, n: Int) extends Module {
   val io = new Bundle {
     val in = new Stream(gen).asSlave()
     val out = Vec.fill(n) { new Stream(gen) }
   }
-  if (synchronous) {
+  val linkEnable = Vec.fill(n) { RegInit(Bool(true)) }
+
+  io.in.ready := Bool(true)
+  for (i <- (0 to n - 1)) {
+    when(~io.out(i).ready && linkEnable(i)) {
+      io.in.ready := Bool(false)
+    }
+  }
+
+  for (i <- (0 to n - 1)) {
+    io.out(i).valid := io.in.valid && linkEnable(i)
+    io.out(i).bits := io.in.bits
+    when(io.out(i).fire()) {
+      linkEnable(i) := Bool(false)
+    }
+  }
+
+  when(io.in.ready) {
+    linkEnable.map(_ := Bool(true))
+  }
+}
+/*
     val out = Vec.fill(n) { new Stream(gen) }
 
     io.in.ready := Bool(true)
@@ -166,29 +187,7 @@ class Fork[T <: Data](gen: T, n: Int, synchronous: Boolean = false) extends Modu
       out(i).bits := io.in.bits
       out(i) >-> io.out(i)
     }
-  } else {
-    val linkEnable = Vec.fill(n) { RegInit(Bool(true)) }
-
-    io.in.ready := Bool(true)
-    for (i <- (0 to n - 1)) {
-      when(~io.out(i).ready && linkEnable(i)) {
-        io.in.ready := Bool(false)
-      }
-    }
-
-    for (i <- (0 to n - 1)) {
-      io.out(i).valid := io.in.valid && linkEnable(i)
-      io.out(i).bits := io.in.bits
-      when(io.out(i).fire()) {
-        linkEnable(i) := Bool(false)
-      }
-    }
-
-    when(io.in.ready) {
-      linkEnable.map(_ := Bool(true))
-    }
-  }
-}
+ */
 
 
 
