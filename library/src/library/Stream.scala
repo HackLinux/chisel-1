@@ -8,25 +8,32 @@ class Stream[T <: Data](gen: T) extends DecoupledIO(gen) {
   def asMaster(dummy: Int = 0): this.type = { this }
   def asSlave(dummy: Int = 0): this.type = { flip; this }
 
-  def >>(next: DecoupledIO[T]) {
+  /* def >>(next: DecoupledIO[T]) {
     next.valid := this.valid
     this.ready := next.ready
     next.bits := this.bits
-  }
+  }*/
   def <<(previous: DecoupledIO[T]) {
     this.valid := previous.valid
     previous.ready := this.ready
     this.bits := previous.bits
   }
 
-  def ~[T2 <: Data](nextBits: T2): Stream[T2] = {
+  /* def ~[T2 <: Data](nextBits: T2): Stream[T2] = {
     val next = new Stream(nextBits)
     next.valid := this.valid
     this.ready := next.ready
     next.bits := nextBits
     return next
-  }
+  }*/
 
+  def &(linkEnable: Bool): Stream[T] = {
+    val next = new Stream(this.bits)
+    next.valid := this.valid && linkEnable
+    this.ready := next.ready && linkEnable
+    next.bits := next.bits
+    return next
+  }
 
   def >>(next: StreamReg[T]) {
     ready := next.isFree()
@@ -36,7 +43,7 @@ class Stream[T <: Data](gen: T) extends DecoupledIO(gen) {
     }
   }
 
-  def >->(next: DecoupledIO[T]) {
+  /* def >->(next: DecoupledIO[T]) {
     val rValid = Reg(init = Bool(false))
     val rBits = Reg(gen)
 
@@ -67,7 +74,7 @@ class Stream[T <: Data](gen: T) extends DecoupledIO(gen) {
       rValid := this.valid
       rBits := this.bits
     }
-  }
+  }*/
 
   def >/->(next: Stream[T]) {
     val stage = this.clone
@@ -75,11 +82,11 @@ class Stream[T <: Data](gen: T) extends DecoupledIO(gen) {
     stage >-> next
   }
 
-  def >/->(next: DecoupledIO[T]) {
+  /* def >/->(next: DecoupledIO[T]) {
     val stage = this.clone
     this >/> stage
     stage >-> next
-  }
+  }*/
 
   override def clone: this.type = { new Stream(gen).asInstanceOf[this.type]; }
 }
@@ -141,26 +148,47 @@ class DispatcherReg[T <: Data](gen: T, n: Int) extends Module {
 
 }
 
-class ForkReg[T <: Data](gen: T, n: Int) extends Module {
+class Fork[T <: Data](gen: T, n: Int, synchronous: Boolean = false) extends Module {
   val io = new Bundle {
     val in = new Stream(gen).asSlave()
     val out = Vec.fill(n) { new Stream(gen) }
   }
+  if (synchronous) {
+    val out = Vec.fill(n) { new Stream(gen) }
 
-  val out = Vec.fill(n) { new Stream(gen) }
+    io.in.ready := Bool(true)
+    for (i <- (0 to n - 1)) {
+      when(~out(i).ready) { io.in.ready := Bool(false) }
+    }
 
-  io.in.ready := Bool(true)
-  for (i <- (0 to n - 1)) {
-    when(~out(i).ready) { io.in.ready := Bool(false) }
-  }
+    for (i <- (0 to n - 1)) {
+      out(i).valid := io.in.fire()
+      out(i).bits := io.in.bits
+      out(i) >-> io.out(i)
+    }
+  } else {
+    val linkEnable = Vec.fill(n) { RegInit(Bool(true)) }
 
-  for (i <- (0 to n - 1)) {
-    out(i).valid := io.in.fire()
-    out(i).bits := io.in.bits
-    out(i) >-> io.out(i)
+    io.in.ready := Bool(true)
+    for (i <- (0 to n - 1)) {
+      when(~io.out(i).ready && linkEnable(i)) {
+        io.in.ready := Bool(false)
+      }
+    }
+
+    for (i <- (0 to n - 1)) {
+      io.out(i).valid := io.in.valid && linkEnable(i)
+      io.out(i).bits := io.in.bits
+      when(io.out(i).fire()) {
+        linkEnable(i) := Bool(false)
+      }
+    }
+
+    when(io.in.ready) {
+      linkEnable.map(_ := Bool(true))
+    }
   }
 }
-
 
 
 
