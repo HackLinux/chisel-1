@@ -2,6 +2,8 @@ package logicanalyser
 
 import Chisel._
 import scala.collection.mutable.MutableList
+import packet.Fragment
+import packet.DecoupledFragment
 
 object LogicAnalyser {
   var UUID = 0
@@ -60,7 +62,7 @@ object LogicAnalyser {
       riseIdx = riseIdx - 1;
     }
 
-    println("EXTRACT " + data)
+  //  println("EXTRACT " + data)
     return dataPtr
   }
 
@@ -117,9 +119,10 @@ class UartIo extends Bundle {
  
 class LogicAnalyser(p: LogicAnalyser.Parameter) extends Module {
   val io = new Bundle {
-    val config = new LogicAnalyser.Config(p).asInput
+    //val config = new LogicAnalyser.Config(p).asInput
     
-    val uart = new UartIo
+    val packetSlave = Decoupled(Fragment(Bits(width = 8))).flip
+    val packetMaster = Decoupled(Fragment(Bits(width = 8)))
   }
 
   val UUID = LogicAnalyser.getUUID
@@ -130,7 +133,6 @@ class LogicAnalyser(p: LogicAnalyser.Parameter) extends Module {
     val probe = data.clone
     probes += probe
     probesWidth += probe.getWidth
-    //probesBits = Cat(probesBits, probe)
   }
 
   def connect(dummy: Int = 0) {
@@ -141,32 +143,27 @@ class LogicAnalyser(p: LogicAnalyser.Parameter) extends Module {
     }
   }
 
-  /* var probesBits: Bits = Bits(width = probesWidth)
-  var idx = 0
-  for (probe <- probes) {
-    println("CONNECT")
-    //probesBits(probe.getWidth-1,idx) := probe
-    idx += probe.getWidth
-  }*/
-  /*  var probesBits: UInt = UInt(width = 4)
-  probesBits := probes(0)
-*/
-  var probesData: Data = probes.reduceLeft(Cat(_, _))
+  var probesBits: Bits = Bits(width = probesWidth)
+  probesBits := probes.reduceLeft(Cat(_, _)).toBits
 
   val trigger = Bool()
   val triggerCounter = RegInit(UInt(0,10))
   triggerCounter := triggerCounter + UInt(1)
-  trigger := triggerCounter === UInt(triggerCounter.maxNum)
-  
+  trigger := triggerCounter === UInt((1<<triggerCounter.getWidth) - 1)
 
-  val logger = Module(new LALogger(p, probesData))
+  val logger = Module(new LALogger(p, probesBits))
   logger.io.trigger := trigger
-  logger.io.probe := probesData
-  logger.io.config := io.config
-  //logger.io.log TODO
+  logger.io.probe := probesBits
+  logger.io.config.samplesLeftAfterTrigger := UInt((1<<p.memAddressWidth)/2)
 
-  io.uart.tx := Bool(false)
-  when(probesData.toBits != Bits(0)) {
-    io.uart.tx := Bool(true)
-  }
+  val logWidthAdapter = Module(new DecoupledFragment.WidthAdapter(probesBits.getWidth,8))
+  logWidthAdapter.io.in <> logger.io.log
+  
+  val logHeaderAdder = Module(new DecoupledFragment.HeaderAdder(16,8))
+  logHeaderAdder.io.header := Bits(0xAA55)
+  logHeaderAdder.io.in <> logWidthAdapter.io.out
+  logHeaderAdder.io.out <> io.packetMaster
+  
+  
+ 
 }

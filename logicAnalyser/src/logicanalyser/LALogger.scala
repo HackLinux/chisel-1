@@ -9,17 +9,17 @@ object LALogger {
   }
 }
 
-class LALogger(p: LogicAnalyser.Parameter, probesData: Data) extends Module {
+class LALogger(p: LogicAnalyser.Parameter, probesBits: Bits) extends Module {
   val io = new Bundle {
     val config = new LALogger.Config(p).asInput
 
     val trigger = Bool(INPUT)
-    val probe = probesData.clone.asInput
+    val probe = probesBits.clone.asInput
 
-    val log = Decoupled(Fragment(probesData.clone))
+    val log = Decoupled(Fragment(probesBits.clone))
   }
 
-  val mem = Mem(probesData, 1 << p.memAddressWidth)
+  val mem = Mem(Bits(width = probesBits.getWidth), 1 << p.memAddressWidth,seqRead = true)
   val memWriteAddress = RegInit(UInt(0, p.memAddressWidth))
   val memReadAddress = RegInit(UInt(0, p.memAddressWidth))
 
@@ -40,7 +40,7 @@ class LALogger(p: LogicAnalyser.Parameter, probesData: Data) extends Module {
     sSampleCounter := UInt(io.config.samplesLeftAfterTrigger)
     when(io.trigger) {
       state := sSample
-      memReadAddress := memWriteAddress + io.config.samplesLeftAfterTrigger
+      memReadAddress := memWriteAddress + io.config.samplesLeftAfterTrigger + UInt(2)
     }
   }
   when(state === sSample) {
@@ -58,7 +58,7 @@ class LALogger(p: LogicAnalyser.Parameter, probesData: Data) extends Module {
       memReadAddress := memReadAddress + UInt(1)
       sPushCounter := sPushCounter + UInt(1)
     }
-    when(sPushCounter === UInt(sPushCounter.maxNum)) {
+    when(sPushCounter === UInt((1 << sPushCounter.getWidth)-1)) {
       io.log.bits.last := Bool(true)
       when(io.log.ready) {
         state := sWaitTrigger
