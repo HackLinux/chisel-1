@@ -1,6 +1,9 @@
-package library
+package chiselext
 
 import Chisel._
+object Stream {
+  def apply[T <: Data](gen: T): Stream[T] = new Stream(gen)
+}
 
 class Stream[T <: Data](gen: T) extends DecoupledIO(gen) {
   def isFree(dummy: Int = 0): Bool = (~this.valid) | this.ready
@@ -8,42 +11,16 @@ class Stream[T <: Data](gen: T) extends DecoupledIO(gen) {
   def asMaster(dummy: Int = 0): this.type = { this }
   def asSlave(dummy: Int = 0): this.type = { flip; this }
 
-  /* def >>(next: DecoupledIO[T]) {
+   //left to right simple connection
+  def >>(next: DecoupledIO[T]) : DecoupledIO[T] = {
     next.valid := this.valid
     this.ready := next.ready
     next.bits := this.bits
-  }*/
-  def <<(previous: DecoupledIO[T]) {
-    this.valid := previous.valid
-    previous.ready := this.ready
-    this.bits := previous.bits
+    next
   }
 
-  /* def ~[T2 <: Data](nextBits: T2): Stream[T2] = {
-    val next = new Stream(nextBits)
-    next.valid := this.valid
-    this.ready := next.ready
-    next.bits := nextBits
-    return next
-  }*/
-
-  def &(linkEnable: Bool): Stream[T] = {
-    val next = new Stream(this.bits)
-    next.valid := this.valid && linkEnable
-    this.ready := next.ready && linkEnable
-    next.bits := next.bits
-    return next
-  }
-
-  def >>(next: StreamReg[T]) {
-    ready := next.isFree()
-    when(ready) {
-      next.valid := valid
-      next.bits := bits
-    }
-  }
-
-  /* def >->(next: DecoupledIO[T]) {
+  //left to right connection (cut data path, add 1 cycle latency)
+  def >->(next: DecoupledIO[T]) : DecoupledIO[T] = {
     val rValid = Reg(init = Bool(false))
     val rBits = Reg(gen)
 
@@ -56,9 +33,11 @@ class Stream[T <: Data](gen: T) extends DecoupledIO(gen) {
 
     next.valid := rValid
     next.bits := rBits
+    next
   }
-
-  def >/>(next: DecoupledIO[T]) {
+    
+  //left to right connection (cut ready path, no latency added)
+  def >/>(next: DecoupledIO[T]) : DecoupledIO[T] = {
     val rValid = Reg(init = Bool(false))
     val rBits = Reg(gen)
 
@@ -74,7 +53,51 @@ class Stream[T <: Data](gen: T) extends DecoupledIO(gen) {
       rValid := this.valid
       rBits := this.bits
     }
-  }*/
+    next
+  }
+ 
+  //left to right connection (cut ready and data path, add 1 cycle latency)
+  def >/->(next: DecoupledIO[T]) : DecoupledIO[T] = {
+    val stage = this.clone
+    this >/> stage
+    stage >-> next
+    next
+  }  
+  
+  //Take left DecoupledIO arbitration with right bits and return a new stream with
+  //Usefull to translate DecoupledIO to a other type  (inputDecoupledIO ~ newBitsCalculatedFromInput) >> outputStream
+  def ~[T2 <: Data](nextBits: T2): Stream[T2] = {
+    val next = new Stream(nextBits)
+    next.valid := this.valid
+    this.ready := next.ready
+    next.bits := nextBits
+    next
+  }
+
+  def <<(previous: DecoupledIO[T]) {
+    this.valid := previous.valid
+    previous.ready := this.ready
+    this.bits := previous.bits
+  }
+
+
+  def &(linkEnable: Bool): Stream[T] = {
+    val next = new Stream(this.bits)
+    next.valid := this.valid && linkEnable
+    this.ready := next.ready && linkEnable
+    next.bits := this.bits
+    return next
+  }
+
+  def >>(next: StreamReg[T]) {
+    ready := next.isFree()
+    when(ready) {
+      next.valid := valid
+      next.bits := bits
+    }
+  }
+
+  
 
   def >/->(next: Stream[T]) {
     val stage = this.clone
@@ -82,11 +105,6 @@ class Stream[T <: Data](gen: T) extends DecoupledIO(gen) {
     stage >-> next
   }
 
-  /* def >/->(next: DecoupledIO[T]) {
-    val stage = this.clone
-    this >/> stage
-    stage >-> next
-  }*/
 
   override def clone: this.type = { new Stream(gen).asInstanceOf[this.type]; }
 }
@@ -101,12 +119,22 @@ object Stream {
   }
 }
 */
+
+
+object StreamReg {
+  def apply[T <: Data](gen: T): StreamReg[T] = new StreamReg(gen)
+}
+
 class StreamReg[T <: Data](gen: T) extends Bundle {
   val valid = Reg(init = Bool(false))
   val ready = Bool()
   val bits = Reg(gen)
 
-  def >->(next: DecoupledIO[T]) {
+  when(ready){
+    valid := Bool(false)
+  }
+  
+  def >>(next: DecoupledIO[T]) {
     next.valid := valid
     ready := next.ready
     next.bits := bits

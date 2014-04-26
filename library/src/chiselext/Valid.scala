@@ -1,4 +1,4 @@
-package library
+package chiselext
 
 import Chisel.ValidIO
 import Chisel._

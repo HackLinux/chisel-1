@@ -1,4 +1,4 @@
-package library
+package chiselext
 import java.io._
 
 import Chisel._
