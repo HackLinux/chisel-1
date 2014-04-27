@@ -3,13 +3,21 @@ package chiselext
 import Chisel.ValidIO
 import Chisel._
 
-class Valid[T <: Data](gen: T) extends ValidIO(gen) {
-  def asMaster(dummy: Int = 0): Valid.this.type = { Valid.this }
-  def asSlave(dummy: Int = 0): Valid.this.type = { flip; Valid.this }
+object Flow {
+  def apply[T <: Data](gen: T): Flow[T] = new Flow(gen)
+}
+
+class Flow[T <: Data](gen: T) extends ValidIO(gen) {
+  def asMaster(dummy: Int = 0): Flow.this.type = { Flow.this }
+  def asSlave(dummy: Int = 0): Flow.this.type = { flip; Flow.this }
 
   def >>(next: ValidIO[T]) {
     next.valid := valid
     next.bits := bits
+  }
+  def <<(next: ValidIO[T]) {
+    valid := next.valid
+    bits := next.bits
   }
 
   def >->(next: ValidIO[T]) {
@@ -20,17 +28,17 @@ class Valid[T <: Data](gen: T) extends ValidIO(gen) {
     next.bits := rBits
   }
 
-  override def clone: Valid.this.type =
+  override def clone: Flow.this.type =
     try {
       super.clone()
     } catch {
       case e: java.lang.Exception => {
-        (new Valid(gen)).asInstanceOf[Valid.this.type]
+        (new Flow(gen)).asInstanceOf[Flow.this.type]
       }
     }
 }
 
-class ValidReg[T <: Data](gen: T) extends Bundle {
+class FlowReg[T <: Data](gen: T) extends Bundle {
 
   val valid = Reg(init = Bool(false))
   val bits = Reg(gen)
@@ -40,7 +48,7 @@ class ValidReg[T <: Data](gen: T) extends Bundle {
     next.bits := bits
   }
 
-  def >>(next: ValidReg[T]) {
+  def >>(next: FlowReg[T]) {
     next.valid := valid
     next.bits := bits
   }

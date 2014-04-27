@@ -1,6 +1,7 @@
 package chiselext
 
 import Chisel._
+
 object Stream {
   def apply[T <: Data](gen: T): Stream[T] = new Stream(gen)
 }

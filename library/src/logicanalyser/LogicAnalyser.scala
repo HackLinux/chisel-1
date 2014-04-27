@@ -120,9 +120,10 @@ class LogicAnalyser(p: LogicAnalyser.Parameter) extends Module {
   val io = new Bundle {
     //val config = new LogicAnalyser.Config(p).asInput
     
-    val packetSlave = Stream(Fragment(Bits(width = 8))).flip
+    val packetSlave = Flow(Fragment(Bits(width = 8))).flip
     val packetMaster = Stream(Fragment(Bits(width = 8)))
   }
+  
 
   val UUID = LogicAnalyser.getUUID
 
@@ -170,24 +171,17 @@ class LogicAnalyser(p: LogicAnalyser.Parameter) extends Module {
   logHeaderGenerator.io.generate.valid := Bool(true)
   
   val logHeaderAdder = Module(new StreamFragmentHeaderAdder(8))
-  logHeaderGenerator.io.out >> logHeaderAdder.io.header
-  logWidthAdapter.io.out >> logHeaderAdder.io.in 
-  //logHeaderAdder.io.out >> io.packetMaster
+  logHeaderAdder.io.header << logHeaderGenerator.io.out
+  logHeaderAdder.io.in << logWidthAdapter.io.out
+
+  
+
   
   
-  
- /* val eventRx = Module(new StreamFragmentEventRx(8,4,true))
-  eventRx.io.header := logHeader
-  logHeaderAdder.io.out >> eventRx.io.in
-  eventRx.io.events.ready := Bool(false)*/
   
   val identityRequest = Vec.fill(2) { Bits(width = 8) }
   identityRequest(0) := UInt(0x99)
   identityRequest(1) := UInt(0xAA)
-  
-  val identityEvent = Module(new StreamFragmentEventRx(8,2,true))
-  identityEvent.io.header := identityRequest
-  io.packetSlave >> identityEvent.io.in
   
   val identityResponse = Vec.fill(8) { Bits(width = 8) }
   identityResponse(0) := UInt(0x60)
@@ -197,11 +191,22 @@ class LogicAnalyser(p: LogicAnalyser.Parameter) extends Module {
   identityResponse(4) := UInt(0x64)
   identityResponse(5) := UInt(0x65)
   identityResponse(6) := UInt(0x66)
-  identityResponse(7) := UInt(0x67)
-
+  identityResponse(7) := UInt(0x67)   
+  
+  val identityEvent = Module(new FlowFragmentEventRx(8,2))
+  identityEvent.io.header := identityRequest
+  identityEvent.io.in << io.packetSlave
+  
   val identityGenerator = Module(new StreamFragmentGenerator(8,8))
   identityGenerator.io.header := identityResponse
-  identityEvent.io.events >> identityGenerator.io.generate
+  identityGenerator.io.generate << identityEvent.io.events
   identityGenerator.io.out >> io.packetMaster
-   
+  
+  
+
+  val packetMasterArbitrer = Module(new StreamFragmentArbiter(8,2))
+  packetMasterArbitrer.io.in(0) << logHeaderAdder.io.out
+  packetMasterArbitrer.io.in(1) << identityGenerator.io.out
+  packetMasterArbitrer.io.out >> io.packetMaster
+  
 }
