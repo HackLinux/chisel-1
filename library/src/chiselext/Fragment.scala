@@ -87,9 +87,25 @@ class StreamFragmentHeaderAdderUInt(headerWidth: Int, fragmentWidth: Int, asynch
   }
 
 }
+class StreamFragmentHeaderAdder(fragmentWidth: Int, headerSize: Int) extends Module {
+  val io = new Bundle {
+    val header = Vec.fill(headerSize) { UInt(width = fragmentWidth) }.asInput
+    val in = Stream(Fragment(UInt(width = fragmentWidth))).asSlave()
+    val out = Stream(Fragment(UInt(width = fragmentWidth))).asMaster()
+  }
 
-class StreamFragmentHeaderAdder(fragmentWidth: Int, asynchronous: Boolean = false) extends Module {
-  require(asynchronous == false)
+  val headerGenerator = Module(new StreamFragmentGenerator(io.header))
+  headerGenerator.io.packetData := io.header
+  headerGenerator.io.generate.valid := Bool(true)
+
+  val headerAdder = Module(new StreamFragmentHeaderJoin(fragmentWidth))
+  headerAdder.io.header << headerGenerator.io.out
+  headerAdder.io.in << io.in
+  headerAdder.io.out >> io.out
+
+}
+
+class StreamFragmentHeaderJoin(fragmentWidth: Int) extends Module {
 
   val io = new Bundle {
     val header = Stream(Fragment(UInt(width = fragmentWidth))).asSlave()
@@ -122,9 +138,12 @@ class StreamFragmentHeaderAdder(fragmentWidth: Int, asynchronous: Boolean = fals
 
 }
 
-class StreamFragmentGenerator(fragmentWidth: Int, fragmentCount: Int) extends Module {
+class StreamFragmentGenerator(vec: Vec[UInt]) extends Module {
+  def fragmentCount = vec.size
+  def fragmentWidth = vec(0).getWidth
+  
   val io = new Bundle {
-    val header = Vec.fill(fragmentCount) { UInt(width = fragmentWidth) }.asInput
+    val packetData = Vec.fill(fragmentCount) { UInt(width = fragmentWidth) }.asInput
     val generate = Stream(UInt(width = 1)).asSlave()
     val out = Stream(Fragment(UInt(width = fragmentWidth))).asMaster()
   }
@@ -135,7 +154,7 @@ class StreamFragmentGenerator(fragmentWidth: Int, fragmentCount: Int) extends Mo
   io.out.bits.last := Bool(false)
 
   io.out.valid := io.generate.valid
-  io.out.bits.fragment := io.header(counter)
+  io.out.bits.fragment := io.packetData(counter)
   when(io.out.fire()) {
     counter := counter + UInt(1);
   }
@@ -193,9 +212,11 @@ class StreamFragmentEventRx(fragmentWidth: Int, fragmentCount: Int) extends Modu
 
 }
 
-class FlowFragmentEventRx(fragmentWidth: Int, fragmentCount: Int) extends Module {
+class FlowFragmentEventRx(header: Vec[UInt]) extends Module {
+  def fragmentCount = header.size
+  def fragmentWidth = header(0).getWidth
+  
   val io = new Bundle {
-    val header = Vec.fill(fragmentCount) { UInt(width = fragmentWidth) }.asInput
     val in = Flow(Fragment(UInt(width = fragmentWidth))).asSlave()
     val events = Stream(UInt(width = 1)).asMaster()
   }
@@ -210,7 +231,7 @@ class FlowFragmentEventRx(fragmentWidth: Int, fragmentCount: Int) extends Module
   headerMatchCalculated := headerMatch
 
   when(io.in.valid) {
-    when(io.header(counter) != io.in.bits.fragment) {
+    when(header(counter) != io.in.bits.fragment) {
       headerMatchCalculated := Bool(false)
     }
     when(headerMatchCalculated && counter === UInt(fragmentCount - 1)) {
@@ -228,6 +249,39 @@ class FlowFragmentEventRx(fragmentWidth: Int, fragmentCount: Int) extends Module
   event >> io.events
 
 }
+/*object FlowFragmentFilter{
+  def apply()
+}*/
+class FlowFragmentFilter(fragmentWidth: Int, fragmentCount: Int) extends Module {
+  val io = new Bundle {
+    val header = Vec.fill(fragmentCount) { UInt(width = fragmentWidth) }.asInput
+    val in = Flow(Fragment(UInt(width = fragmentWidth))).asSlave()
+    val out = Flow(Fragment(UInt(width = fragmentWidth))).asMaster()
+  }
+
+  val counter = RegInit(UInt(0, log2Up(fragmentCount)))
+  val headerFail = RegInit(Bool(false))
+  val headerDone = RegInit(Bool(false))
+
+  when(io.in.valid) {
+    when(~headerDone && io.header(counter) != io.in.bits.fragment) {
+      headerFail := Bool(true)
+    }
+    when(counter === UInt(fragmentCount - 1)) {
+      headerDone := Bool(true)
+    }
+
+    counter := counter + UInt(1)
+    when(io.in.bits.last) {
+      counter := UInt(0)
+      headerFail := Bool(false)
+      headerDone := Bool(false)
+    }
+  }
+
+  io.out << (io.in & (headerDone && ~headerFail))
+
+}
 
 class StreamFragmentArbiter(fragmentWidth: Int, n: Int) extends Module {
   val io = new Bundle {
@@ -239,18 +293,16 @@ class StreamFragmentArbiter(fragmentWidth: Int, n: Int) extends Module {
   val lockIdx = RegInit(UInt(0, log2Up(n)))
   val chosen = UInt(width = log2Up(n))
 
-
   var choose = UInt(n - 1)
   for (i <- n - 2 to 0 by -1) {
     choose = Mux(io.in(i).valid, UInt(i), choose)
   }
   chosen := Mux(locked, lockIdx, choose)
 
-  when(~locked){
+  when(~locked) {
     lockIdx := chosen
   }
-    
-  
+
   io.in.map(_.ready := Bool(false))
   io.in(chosen) >> io.out
 

@@ -10,7 +10,7 @@ object Flow {
 class Flow[T <: Data](gen: T) extends ValidIO(gen) {
   def asMaster(dummy: Int = 0): Flow.this.type = { Flow.this }
   def asSlave(dummy: Int = 0): Flow.this.type = { flip; Flow.this }
-
+ 
   def >>(next: ValidIO[T]) {
     next.valid := valid
     next.bits := bits
@@ -28,6 +28,13 @@ class Flow[T <: Data](gen: T) extends ValidIO(gen) {
     next.bits := rBits
   }
 
+  def &(linkEnable: Bool): Flow[T] = {
+    val next = new Flow(this.bits)
+    next.valid := this.valid && linkEnable
+    next.bits := this.bits
+    return next
+  }
+  
   override def clone: Flow.this.type =
     try {
       super.clone()

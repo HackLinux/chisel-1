@@ -166,12 +166,9 @@ class LogicAnalyser(p: LogicAnalyser.Parameter) extends Module {
   logHeader(2) := UInt(0x33)
   logHeader(3) := UInt(0x44)
   
-  val logHeaderGenerator = Module(new StreamFragmentGenerator(8,4))
-  logHeaderGenerator.io.header := logHeader
-  logHeaderGenerator.io.generate.valid := Bool(true)
-  
-  val logHeaderAdder = Module(new StreamFragmentHeaderAdder(8))
-  logHeaderAdder.io.header << logHeaderGenerator.io.out
+
+  val logHeaderAdder = Module(new StreamFragmentHeaderAdder(8,logHeader.size))
+  logHeaderAdder.io.header := logHeader
   logHeaderAdder.io.in << logWidthAdapter.io.out
 
   
@@ -193,12 +190,11 @@ class LogicAnalyser(p: LogicAnalyser.Parameter) extends Module {
   identityResponse(6) := UInt(0x66)
   identityResponse(7) := UInt(0x67)   
   
-  val identityEvent = Module(new FlowFragmentEventRx(8,2))
-  identityEvent.io.header := identityRequest
+  val identityEvent = Module(new FlowFragmentEventRx(identityRequest))
   identityEvent.io.in << io.packetSlave
   
-  val identityGenerator = Module(new StreamFragmentGenerator(8,8))
-  identityGenerator.io.header := identityResponse
+  val identityGenerator = Module(new StreamFragmentGenerator(identityResponse))
+  identityGenerator.io.packetData := identityResponse
   identityGenerator.io.generate << identityEvent.io.events
   identityGenerator.io.out >> io.packetMaster
   
