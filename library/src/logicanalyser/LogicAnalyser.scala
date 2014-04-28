@@ -167,8 +167,7 @@ class LogicAnalyser(p: LogicAnalyser.Parameter) extends Module {
   logHeader(3) := UInt(0x44)
   
 
-  val logHeaderAdder = Module(new StreamFragmentHeaderAdder(8,logHeader.size))
-  logHeaderAdder.io.header := logHeader
+  val logHeaderAdder = Module(new StreamFragmentHeaderAdder(logHeader))
   logHeaderAdder.io.in << logWidthAdapter.io.out
 
   

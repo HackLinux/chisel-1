@@ -49,7 +49,7 @@ class StreamFragmentWidthAdapter(inWidth: Int, outWidth: Int, asynchronous: Bool
   }
 
   io.in.ready := shiftRegisterReady
-}
+}/*
 class StreamFragmentHeaderAdderUInt(headerWidth: Int, fragmentWidth: Int, asynchronous: Boolean = false) extends Module {
   require(asynchronous == false)
 
@@ -86,16 +86,27 @@ class StreamFragmentHeaderAdderUInt(headerWidth: Int, fragmentWidth: Int, asynch
     }
   }
 
+}*/
+
+
+object StreamFragmentHeaderAdder {
+  def apply(header: UInt): StreamFragmentHeaderAdder = {
+    val vec = Vec.fill(1) { header }
+    new StreamFragmentHeaderAdder(vec)
+  }
 }
-class StreamFragmentHeaderAdder(fragmentWidth: Int, headerSize: Int) extends Module {
+
+class StreamFragmentHeaderAdder(header: Vec[UInt]) extends Module {
+  def fragmentCount = header.size
+  def fragmentWidth = header(0).getWidth
+
   val io = new Bundle {
-    val header = Vec.fill(headerSize) { UInt(width = fragmentWidth) }.asInput
     val in = Stream(Fragment(UInt(width = fragmentWidth))).asSlave()
     val out = Stream(Fragment(UInt(width = fragmentWidth))).asMaster()
   }
 
-  val headerGenerator = Module(new StreamFragmentGenerator(io.header))
-  headerGenerator.io.packetData := io.header
+  val headerGenerator = Module(new StreamFragmentGenerator(header))
+  headerGenerator.io.packetData := header
   headerGenerator.io.generate.valid := Bool(true)
 
   val headerAdder = Module(new StreamFragmentHeaderJoin(fragmentWidth))
@@ -141,7 +152,7 @@ class StreamFragmentHeaderJoin(fragmentWidth: Int) extends Module {
 class StreamFragmentGenerator(vec: Vec[UInt]) extends Module {
   def fragmentCount = vec.size
   def fragmentWidth = vec(0).getWidth
-  
+
   val io = new Bundle {
     val packetData = Vec.fill(fragmentCount) { UInt(width = fragmentWidth) }.asInput
     val generate = Stream(UInt(width = 1)).asSlave()
@@ -211,11 +222,17 @@ class StreamFragmentEventRx(fragmentWidth: Int, fragmentCount: Int) extends Modu
   event >> io.events
 
 }
+object FlowFragmentEventRx {
+  def apply(header: UInt): FlowFragmentEventRx = {
+    val vec = Vec.fill(1) { header }
+    new FlowFragmentEventRx(vec)
+  }
+}
 
 class FlowFragmentEventRx(header: Vec[UInt]) extends Module {
   def fragmentCount = header.size
   def fragmentWidth = header(0).getWidth
-  
+
   val io = new Bundle {
     val in = Flow(Fragment(UInt(width = fragmentWidth))).asSlave()
     val events = Stream(UInt(width = 1)).asMaster()
@@ -249,12 +266,19 @@ class FlowFragmentEventRx(header: Vec[UInt]) extends Module {
   event >> io.events
 
 }
-/*object FlowFragmentFilter{
-  def apply()
-}*/
-class FlowFragmentFilter(fragmentWidth: Int, fragmentCount: Int) extends Module {
+
+object FlowFragmentFilter {
+  def apply(header: UInt): FlowFragmentFilter = {
+    val vec = Vec.fill(1) { header }
+    new FlowFragmentFilter(vec)
+  }
+}
+
+class FlowFragmentFilter(header: Vec[UInt]) extends Module {
+  def fragmentCount = header.size
+  def fragmentWidth = header(0).getWidth
+
   val io = new Bundle {
-    val header = Vec.fill(fragmentCount) { UInt(width = fragmentWidth) }.asInput
     val in = Flow(Fragment(UInt(width = fragmentWidth))).asSlave()
     val out = Flow(Fragment(UInt(width = fragmentWidth))).asMaster()
   }
@@ -264,7 +288,7 @@ class FlowFragmentFilter(fragmentWidth: Int, fragmentCount: Int) extends Module 
   val headerDone = RegInit(Bool(false))
 
   when(io.in.valid) {
-    when(~headerDone && io.header(counter) != io.in.bits.fragment) {
+    when(~headerDone && header(counter) != io.in.bits.fragment) {
       headerFail := Bool(true)
     }
     when(counter === UInt(fragmentCount - 1)) {
