@@ -4,6 +4,16 @@ import Chisel._
 
 object Fragment {
   def apply[T <: Data](gen: T): Fragment[T] = new Fragment(gen)
+  
+  def isFirst[T <: Data](flow : Flow[Fragment[T]]) : Bool = {
+    val first = RegInit(Bool(true))
+    
+    when(flow.valid){
+      first := flow.bits.last
+    }
+    
+    return first
+  }
 }
 
 class Fragment[T <: Data](gen: T) extends Bundle {
@@ -305,6 +315,29 @@ class FlowFragmentFilter(header: Vec[UInt]) extends Module {
 
   io.out << (io.in & (headerDone && ~headerFail))
 
+}
+
+class FlowFragmentAddressFilter(address : UInt) extends Module {
+  def fragmentWidth = address.getWidth
+
+  val io = new Bundle {
+    val in = Flow(Fragment(UInt(width = fragmentWidth))).asSlave()
+    val out = Flow(Fragment(UInt(width = fragmentWidth))).asMaster()
+  }
+  val first = Fragment.isFirst(io.in)
+  val headerMatch = RegInit(Bool(false))
+
+  when(io.in.valid) {
+    when(first && (address === io.in.bits.fragment || UInt((1l<<fragmentWidth)-1) === io.in.bits.fragment)) {
+      headerMatch := Bool(true)
+    }
+
+    when(io.in.bits.last) {
+       headerMatch := Bool(false)
+    }
+  }
+
+  io.out << (io.in & headerMatch)
 }
 
 class StreamFragmentArbiter(fragmentWidth: Int, n: Int) extends Module {
