@@ -1,4 +1,4 @@
-package client;
+package client.serial;
 
 import gnu.io.CommPort;
 import gnu.io.CommPortIdentifier;

@@ -49,7 +49,7 @@ class StreamFragmentWidthAdapter(inWidth: Int, outWidth: Int, asynchronous: Bool
     shiftRegisterCounter := shiftRegisterCounter - UInt(1)
   }
 
-  shiftRegisterReady := ~shiftRegisterValid || (io.out.ready && shiftRegisterCounter === UInt(0))
+  shiftRegisterReady := !shiftRegisterValid || (io.out.ready && shiftRegisterCounter === UInt(0))
 
   when(shiftRegisterReady) {
     shiftRegisterValid := io.in.valid
@@ -73,7 +73,7 @@ class StreamFragmentHeaderAdderUInt(headerWidth: Int, fragmentWidth: Int, asynch
   //if (headerWidth % fragmentWidth != 0) fragmentCount = fragmentCount + 1
   val counter = RegInit(UInt(0, log2Up(fragmentCount)))
   val done = RegInit(Bool(false))
-  when(~done) {
+  when(!done) {
     io.out.valid := io.in.valid
     io.out.bits.last := Bool(false)
     // io.out.bits.fragment := io.header((counter + UInt(1)) * UInt(fragmentWidth - 1), counter * UInt(fragmentWidth))
@@ -136,9 +136,9 @@ class StreamFragmentHeaderJoin(fragmentWidth: Int) extends Module {
 
   val done = RegInit(Bool(false))
 
-  when(~done) {
+  when(!done) {
     io.header >> io.out
-    when(~io.in.valid) {
+    when(!io.in.valid) {
       io.out.valid := Bool(false)
       io.header.ready := Bool(false)
     }
@@ -206,7 +206,7 @@ class StreamFragmentEventRx(fragmentWidth: Int, fragmentCount: Int) extends Modu
   headerMatch := headerMatchCalculated
   headerMatchCalculated := headerMatch
 
-  io.in.ready := ~(counter === UInt(fragmentCount - 1) && headerMatchCalculated && ~io.events.isFree())
+  io.in.ready := !(counter === UInt(fragmentCount - 1) && headerMatchCalculated && !io.events.isFree())
   when(io.in.valid) {
     when(io.header(counter) != io.in.bits.fragment) {
       headerMatchCalculated := Bool(false)
@@ -225,7 +225,7 @@ class StreamFragmentEventRx(fragmentWidth: Int, fragmentCount: Int) extends Modu
     }
   }
 
-  when(~io.in.ready) {
+  when(!io.in.ready) {
     headerMatch := headerMatch
   }
 
@@ -298,7 +298,7 @@ class FlowFragmentFilter(header: Vec[UInt]) extends Module {
   val headerDone = RegInit(Bool(false))
 
   when(io.in.valid) {
-    when(~headerDone && header(counter) != io.in.bits.fragment) {
+    when(!headerDone && header(counter) != io.in.bits.fragment) {
       headerFail := Bool(true)
     }
     when(counter === UInt(fragmentCount - 1)) {
@@ -313,7 +313,7 @@ class FlowFragmentFilter(header: Vec[UInt]) extends Module {
     }
   }
 
-  io.out << (io.in & (headerDone && ~headerFail))
+  io.out << (io.in & (headerDone && !headerFail))
 
 }
 
@@ -356,7 +356,7 @@ class StreamFragmentArbiter(fragmentWidth: Int, n: Int) extends Module {
   }
   chosen := Mux(locked, lockIdx, choose)
 
-  when(~locked) {
+  when(!locked) {
     lockIdx := chosen
   }
 
@@ -364,7 +364,7 @@ class StreamFragmentArbiter(fragmentWidth: Int, n: Int) extends Module {
   io.in(chosen) >> io.out
 
   when(io.in(chosen).fire()) {
-    locked := ~io.in(chosen).bits.last
+    locked := !io.in(chosen).bits.last
   }
 }
 

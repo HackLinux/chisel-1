@@ -1,4 +1,4 @@
-package client;
+package client.serial;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -18,8 +18,13 @@ public class SerialPortHandler implements SerialPortEventListener {
 	private SerialPort serialPort;
 	private OutputStream outStream;
 	private InputStream inStream;
+	
+	boolean isConnected = false;
 
-	public void connect(String portName) throws IOException {
+	public void connect(String portName,int baudrate,int parity,int stop) throws IOException {
+		if(isConnected){
+			disconnect();
+		}
 		try {
 			// Obtain a CommPortIdentifier object for the port you want to open
 			CommPortIdentifier portId = CommPortIdentifier
@@ -28,14 +33,31 @@ public class SerialPortHandler implements SerialPortEventListener {
 			// Get the port's ownership
 			serialPort = (SerialPort) portId.open("Demo application", 5000);
 
-			// Set the parameters of the connection.
-			setSerialPortParameters();
+			try {
+				// Set serial port to 57600bps-8N1..my favourite
+				serialPort.setInputBufferSize(1024 * 1024);
+				serialPort.setOutputBufferSize(1024 * 1024);
+				serialPort.setSerialPortParams(baudrate, SerialPort.DATABITS_8,
+						SerialPort.STOPBITS_1, SerialPort.PARITY_NONE);
+
+				serialPort.setFlowControlMode(SerialPort.FLOWCONTROL_NONE);
+
+				serialPort.addEventListener(this);
+				serialPort.notifyOnDataAvailable(true);
+			} catch (UnsupportedCommOperationException ex) {
+				throw new IOException("Unsupported serial port parameter");
+			} catch (TooManyListenersException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
 
 			// Open the input and output streams for the connection. If they
 			// won't
 			// open, close the port before throwing an exception.
 			outStream = serialPort.getOutputStream();
 			inStream = serialPort.getInputStream();
+			
+			isConnected = true;
 		} catch (NoSuchPortException e) {
 			throw new IOException(e.getMessage());
 		} catch (PortInUseException e) {
@@ -44,6 +66,8 @@ public class SerialPortHandler implements SerialPortEventListener {
 			serialPort.close();
 			throw e;
 		}
+		
+		
 	}
 
 	/**
@@ -64,33 +88,11 @@ public class SerialPortHandler implements SerialPortEventListener {
 		return outStream;
 	}
 
-	/**
-	 * Sets the serial port parameters
-	 */
-	private void setSerialPortParameters() throws IOException {
-		int baudRate = 57600; // 57600bps
 
-		try {
-			// Set serial port to 57600bps-8N1..my favourite
-			serialPort.setInputBufferSize(1024 * 1024);
-			serialPort.setOutputBufferSize(1024 * 1024);
-			serialPort.setSerialPortParams(baudRate, SerialPort.DATABITS_8,
-					SerialPort.STOPBITS_1, SerialPort.PARITY_NONE);
-
-			serialPort.setFlowControlMode(SerialPort.FLOWCONTROL_NONE);
-
-			serialPort.addEventListener(this);
-			serialPort.notifyOnDataAvailable(true);
-		} catch (UnsupportedCommOperationException ex) {
-			throw new IOException("Unsupported serial port parameter");
-		} catch (TooManyListenersException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		}
-	}
 
 	public void disconnect() {
 		try {
+			isConnected = false;
 			serialPort.removeEventListener();
 			serialPort.close();
 			inStream.close();
