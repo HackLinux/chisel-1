@@ -107,9 +107,6 @@ public class SerialPortHandler implements SerialPortEventListener {
 		this.observer = observer;
 	}
 	
-	public static final int specialSymbole = 0x60;
-	public static final int endSymbole = 0x61;
-	public static final int xSpSymbole = 0x62;
 
 	public void tx(int b) {
 		try {

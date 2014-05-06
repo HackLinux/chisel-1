@@ -1,4 +1,4 @@
-package chiselext
+package chisellib.utils
 
 import Chisel._
 

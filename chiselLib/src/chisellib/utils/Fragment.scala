@@ -1,6 +1,7 @@
-package chiselext
+package chisellib.utils
 
 import Chisel._
+import scala.math.BigInt.long2bigInt
 
 object Fragment {
   def apply[T <: Data](gen: T): Fragment[T] = new Fragment(gen)

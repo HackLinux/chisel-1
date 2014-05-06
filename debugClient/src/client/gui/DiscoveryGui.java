@@ -9,8 +9,10 @@ import java.awt.BorderLayout;
 import java.awt.Component;
 import java.awt.Container;
 import java.awt.Dimension;
+import java.awt.FlowLayout;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
+import java.awt.GridLayout;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.awt.event.ComponentListener;
@@ -24,6 +26,7 @@ import java.util.Map.Entry;
 import java.util.Vector;
 
 import javax.swing.Action;
+import javax.swing.BorderFactory;
 import javax.swing.BoxLayout;
 import javax.swing.DefaultListModel;
 import javax.swing.JButton;
@@ -53,11 +56,11 @@ public class DiscoveryGui implements ActionListener {
 	JComboBox<String> cbParity;
 	JComboBox<Integer> cbStop;
 	JComboBox<Integer> cbSpeed;
-	
+
 	public JButton btScan;
 	public JList<String> nodeList;
 	public DefaultListModel<String> nodes;
-	
+
 	public DiscoveryGui(SerialPortHandler serialHandler, PacketManager packetManager) {
 		this.serialHandler = serialHandler;
 		this.packetManager = packetManager;
@@ -65,81 +68,64 @@ public class DiscoveryGui implements ActionListener {
 		frame = new JFrame("Client");
 		frame.setDefaultCloseOperation(WindowConstants.EXIT_ON_CLOSE);
 
-		JMenuBar mb = new JMenuBar();
-
-		JMenu fileMenu = new JMenu("Setup");
-		JMenuItem serialSetup = fileMenu.add("serial");
-		serialSetup.addActionListener(this);
-		serialSetup.setActionCommand("Setup/serial");
-		mb.add(fileMenu);
-
-		frame.setJMenuBar(mb);
-
-		JPanel pSerial = new JPanel();
+		GridLayout lConfig = new GridLayout(0, 2);
+		lConfig.setHgap(10);
+		lConfig.setVgap(5);
+		JPanel pConfig = new JPanel(lConfig);
 
 		{
-			pSerial.add(new JLabel(" Baudrate "));
-			Integer[] speedList = { 1200, 2400, 4800, 9600, 19200, 38400, 57600, 115200};
-			cbSpeed = new JComboBox<Integer>(speedList);
-			cbSpeed.setSelectedIndex(7);
-			pSerial.add(cbSpeed);
-			
-			pSerial.add(new JLabel(" Parity "));
-			String[] parityList = { "none", "odd", "even" };
-			cbParity = new JComboBox<String>(parityList);
-			cbParity.setSelectedIndex(0);
-			pSerial.add(cbParity);
-	
-			pSerial.add(new JLabel(" Stop "));
-			Integer[] stopList = { 1,2 };
-			cbStop = new JComboBox<Integer>(stopList);
-			cbStop.setSelectedIndex(0);
-			pSerial.add(cbStop);
-		}
-
-
-		JPanel pButton = new JPanel();
-
-		{
-			pButton.add(new JLabel(" Com "));
+			pConfig.add(new JLabel(" Com "));
 			String[] comList = {};
 			cbCom = new JComboBox<String>(comList);
 			cbCom.addFocusListener(new ComListener());
-			pButton.add(cbCom);
-	
+			pConfig.add(cbCom);
+
+			pConfig.add(new JLabel(" Baudrate "));
+			Integer[] speedList = { 1200, 2400, 4800, 9600, 19200, 38400, 57600, 115200 };
+			cbSpeed = new JComboBox<Integer>(speedList);
+			cbSpeed.setSelectedIndex(7);
+			pConfig.add(cbSpeed);
+
+			pConfig.add(new JLabel(" Parity "));
+			String[] parityList = { "none", "odd", "even" };
+			cbParity = new JComboBox<String>(parityList);
+			cbParity.setSelectedIndex(0);
+			pConfig.add(cbParity);
+
+			pConfig.add(new JLabel(" Stop "));
+			Integer[] stopList = { 1, 2 };
+			cbStop = new JComboBox<Integer>(stopList);
+			cbStop.setSelectedIndex(0);
+			pConfig.add(cbStop);
+
 			JButton btConnect = new JButton("Connect");
 			btConnect.addActionListener(new ConnectListener());
-			pButton.add(btConnect);
-	
+			pConfig.add(btConnect);
+
 			btScan = new JButton("Scan");
 			refreshComComboBox();
-			pButton.add(btScan);
+			pConfig.add(btScan);
 		}
 
 		nodes = new DefaultListModel<String>();
 		nodeList = new JList<String>(nodes);
 		nodeList.setLayoutOrientation(JList.VERTICAL);
 		JScrollPane listScroller = new JScrollPane(nodeList);
-		listScroller.setPreferredSize(new Dimension(250, 80));
+		listScroller.setPreferredSize(new Dimension(250, 20));
 		nodes.addElement("un");
 		nodes.addElement("deux");
 
 		JPanel top = new JPanel();
-		top.setLayout(new BoxLayout(top, BoxLayout.PAGE_AXIS));
-		top.add(pSerial);
-		top.add(pButton);
+		top.setBorder(BorderFactory.createEmptyBorder(2, 2, 2, 2));
+		top.setLayout(new BoxLayout(top, BoxLayout.LINE_AXIS));
+		top.add(pConfig);
 		top.add(listScroller);
 
 		frame.getContentPane().add(top);
-
-		frame.setSize(400, 300);
+		frame.pack();
+		frame.setResizable(false);
 		frame.setVisible(true);
 
-		HashMap<String, CommPortIdentifier> portMap = RxTxHelper.getPortMap();
-
-		for (Entry<String, CommPortIdentifier> e : portMap.entrySet()) {
-			System.out.println(e.getKey());
-		}
 	}
 
 	public void refreshComComboBox() {
@@ -159,11 +145,14 @@ public class DiscoveryGui implements ActionListener {
 		public void actionPerformed(ActionEvent e) {
 			try {
 				int parity = 0;
-				if(cbParity.getSelectedItem().equals("none")) parity = SerialPort.PARITY_NONE;
-				if(cbParity.getSelectedItem().equals("even")) parity = SerialPort.PARITY_EVEN;
-				if(cbParity.getSelectedItem().equals("odd")) parity = SerialPort.PARITY_ODD;
-				serialHandler.connect((String)cbCom.getSelectedItem(),(Integer) cbSpeed.getSelectedItem(),parity,(Integer) cbStop.getSelectedItem());
-				
+				if (cbParity.getSelectedItem().equals("none"))
+					parity = SerialPort.PARITY_NONE;
+				if (cbParity.getSelectedItem().equals("even"))
+					parity = SerialPort.PARITY_EVEN;
+				if (cbParity.getSelectedItem().equals("odd"))
+					parity = SerialPort.PARITY_ODD;
+				serialHandler.connect((String) cbCom.getSelectedItem(), (Integer) cbSpeed.getSelectedItem(), parity, (Integer) cbStop.getSelectedItem());
+
 			} catch (IOException e1) {
 				e1.printStackTrace();
 			}
@@ -179,10 +168,15 @@ public class DiscoveryGui implements ActionListener {
 		public void focusLost(FocusEvent e) {
 
 		}
-
 	}
-
-
-
-
 }
+
+/*
+ * JMenuBar mb = new JMenuBar();
+ * 
+ * JMenu fileMenu = new JMenu("Setup"); JMenuItem serialSetup =
+ * fileMenu.add("serial"); serialSetup.addActionListener(this);
+ * serialSetup.setActionCommand("Setup/serial"); mb.add(fileMenu);
+ * 
+ * frame.setJMenuBar(mb);
+ */
