@@ -266,7 +266,7 @@ class UartTx extends Module {
       tx := io.data.bits(sBitIdx)
     }
     is(stParity) {
-      tx := sSum
+      tx := sSum.toBool
     }
     is(stStopBit) {
       tx := Bool(true)

@@ -207,7 +207,7 @@ class StreamFragmentEventRx(fragmentWidth: Int, fragmentCount: Int) extends Modu
   headerMatch := headerMatchCalculated
   headerMatchCalculated := headerMatch
 
-  io.in.ready := !(counter === UInt(fragmentCount - 1) && headerMatchCalculated && !io.events.isFree())
+  io.in.ready := !(counter === UInt(fragmentCount - 1) && headerMatchCalculated && !(io.events.ready || !io.events.valid)) //To verify ready
   when(io.in.valid) {
     when(io.header(counter) != io.in.bits.fragment) {
       headerMatchCalculated := Bool(false)

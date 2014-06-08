@@ -7,7 +7,6 @@ object Stream {
 }
 
 class Stream[T <: Data](gen: T) extends DecoupledIO(gen) {
-  def isFree(dummy: Int = 0): Bool = (~this.valid) | this.ready
  
   def deq(dummy: Int = 0): T = { ready := Bool(true); bits }
   
@@ -47,7 +46,7 @@ class Stream[T <: Data](gen: T) extends DecoupledIO(gen) {
     next.valid := this.valid || rValid
     this.ready := !rValid
     next.bits := Mux(rValid, rBits, this.bits)
-
+    
     when(next.ready) {
       rValid := Bool(false)
     }
@@ -70,6 +69,15 @@ class Stream[T <: Data](gen: T) extends DecoupledIO(gen) {
   //Take left DecoupledIO arbitration with right bits and return a new stream with
   //Usefull to translate DecoupledIO to a other type  (inputDecoupledIO ! newBitsCalculatedFromInput) >> outputStream
   def ~[T2 <: Data](nextBits: T2): Stream[T2] = {
+    val next = new Stream(nextBits)
+    next.valid := this.valid
+    this.ready := next.ready
+    next.bits := nextBits
+    next
+  }
+  
+  def ~~[T2 <: Data](transformator: T => T2): Stream[T2] = {
+    val nextBits = transformator(this.bits)
     val next = new Stream(nextBits)
     next.valid := this.valid
     this.ready := next.ready
@@ -189,7 +197,7 @@ class DispatcherInOrder[T <: Data](gen: T, n: Int) extends Module {
   }
   val counter = Counter(io.in.fire(), n)._1
 
-    if (n == 1) {
+  if (n == 1) {
 	io.in >> io.out(0)
   } else {
 	  io.in.ready := Bool(false)

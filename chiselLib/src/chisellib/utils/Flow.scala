@@ -23,9 +23,15 @@ class Flow[T <: Data](gen: T) extends ValidIO(gen) {
   def >->(next: ValidIO[T]) {
     val rValid = Reg(init = Bool(false))
     val rBits = Reg(gen)
-
+    
+    rValid := this.valid
+    rBits := this.bits
+    
     next.valid := rValid
     next.bits := rBits
+  }
+  def <-<(precedent: Flow[T]) {
+    precedent >-> this
   }
 
   def &(linkEnable: Bool): Flow[T] = {
