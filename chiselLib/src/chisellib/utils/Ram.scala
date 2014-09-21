@@ -3,13 +3,21 @@ package chisellib.utils
 import Chisel._
 
 class RamWriteBits(addrWidth: Int, dataWidth: Int) extends Bundle { //Top Level component
-  val address = UInt(width = addrWidth)
-  val data = UInt(width = dataWidth)
+  val address = UInt(OUTPUT,width = addrWidth)
+  val data = UInt(OUTPUT,width = dataWidth)
  
   override def clone: this.type = { new RamWriteBits(addrWidth,dataWidth).asInstanceOf[this.type]; }  
-  
-  
 }
+
+class RamReadBits(addrWidth: Int, dataWidth: Int) extends Bundle { //Top Level component
+  val address = UInt(OUTPUT,width = addrWidth)
+  val data = UInt(INPUT,width = dataWidth)
+ 
+  override def clone: this.type = { new RamReadBits(addrWidth,dataWidth).asInstanceOf[this.type]; }  
+}
+
+
+
 /*
 class RamWriteBits extends Bundle { //Top Level component
   val address = UInt(width = 1)

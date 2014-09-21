@@ -1,16 +1,21 @@
 package chisellib.utils
 
-
 import Chisel._
 
 object Flow {
   def apply[T <: Data](gen: T): Flow[T] = new Flow(gen)
+  def apply[T <: Data](valid: Bool, bits: T): Flow[T] = {
+    val flow = new Flow(bits)
+    flow.valid := valid
+    flow.bits := bits
+    flow
+  }
 }
 
 class Flow[T <: Data](gen: T) extends ValidIO(gen) {
   def asMaster(dummy: Int = 0): Flow.this.type = { Flow.this }
   def asSlave(dummy: Int = 0): Flow.this.type = { flip; Flow.this }
- 
+
   def >>(next: ValidIO[T]) {
     next.valid := valid
     next.bits := bits
@@ -23,10 +28,10 @@ class Flow[T <: Data](gen: T) extends ValidIO(gen) {
   def >->(next: ValidIO[T]) {
     val rValid = Reg(init = Bool(false))
     val rBits = Reg(gen)
-    
+
     rValid := this.valid
     rBits := this.bits
-    
+
     next.valid := rValid
     next.bits := rBits
   }
@@ -40,7 +45,19 @@ class Flow[T <: Data](gen: T) extends ValidIO(gen) {
     next.bits := this.bits
     return next
   }
-  
+  def ~[T2 <: Data](nextBits: T2): Flow[T2] = {
+    val next = new Flow(nextBits)
+    next.valid := this.valid
+    next.bits := nextBits
+    next
+  }
+  def toRegMemory(dummy: Int = 0) : T = {
+    val reg = Reg(gen)
+    when(this.valid){
+      reg := bits
+    }
+    reg
+  }
   override def clone: Flow.this.type =
     try {
       super.clone()
