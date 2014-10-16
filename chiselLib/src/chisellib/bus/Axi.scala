@@ -25,6 +25,7 @@ class AxiSlaveWriteResponse(config: AxiSlaveConfig) extends Bundle {
 }
 class AxiSlaveReadCommand(config: AxiSlaveConfig) extends Bundle {
   val addr = UInt(width = config.addrWidth)
+  val prot = UInt(width = 3)
   override def clone: this.type = { new AxiSlaveReadCommand(config).asInstanceOf[this.type]; }
 }
 class AxiSlaveReadResponse(config: AxiSlaveConfig) extends Bundle {

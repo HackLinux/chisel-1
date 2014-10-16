@@ -7,9 +7,9 @@ object Stream {
 }
 
 class Stream[T <: Data](gen: T) extends DecoupledIO(gen) {
- 
+
   def deq(dummy: Int = 0): T = { ready := Bool(true); bits }
-  
+
   def asMaster(dummy: Int = 0): this.type = { this }
   def asSlave(dummy: Int = 0): this.type = { flip; this }
 
@@ -37,7 +37,9 @@ class Stream[T <: Data](gen: T) extends DecoupledIO(gen) {
     next.bits := rBits
     next
   }
-
+  def <-<(previous: Stream[T]) {
+    previous >-> this
+  }
   //left to right connection (cut ready path, no latency added)
   def >/>(next: DecoupledIO[T]): DecoupledIO[T] = {
     val rValid = Reg(init = Bool(false))
@@ -46,7 +48,7 @@ class Stream[T <: Data](gen: T) extends DecoupledIO(gen) {
     next.valid := this.valid || rValid
     this.ready := !rValid
     next.bits := Mux(rValid, rBits, this.bits)
-    
+
     when(next.ready) {
       rValid := Bool(false)
     }
@@ -75,7 +77,7 @@ class Stream[T <: Data](gen: T) extends DecoupledIO(gen) {
     next.bits := nextBits
     next
   }
-  
+
   def ~~[T2 <: Data](transformator: T => T2): Stream[T2] = {
     val nextBits = transformator(this.bits)
     val next = new Stream(nextBits)
@@ -85,7 +87,24 @@ class Stream[T <: Data](gen: T) extends DecoupledIO(gen) {
     next
   }
 
+
+
   def <<(previous: DecoupledIO[T]) {
+    this.valid := previous.valid
+    previous.ready := this.ready
+    this.bits := previous.bits
+  }
+  def <<!(previous: DecoupledIO[Data]) {
+    this.valid := previous.valid
+    previous.ready := this.ready
+    this.bits := previous.bits
+  }
+  def <<![T2 <: Data](previous: StreamReg[T2]) {
+    this.valid := previous.valid
+    previous.ready := this.ready
+    this.bits := previous.bits
+  }
+  def <<(previous: StreamReg[T]) {
     this.valid := previous.valid
     previous.ready := this.ready
     this.bits := previous.bits
@@ -116,6 +135,9 @@ class Stream[T <: Data](gen: T) extends DecoupledIO(gen) {
     val stage = this.clone
     previous >/> stage
     stage >-> this
+  }
+  def <-<(previous: StreamReg[T]) {
+    previous >-> this
   }
 
   def </<(previous: Stream[T]) {
@@ -161,8 +183,18 @@ class StreamReg[T <: Data](gen: T) extends Bundle {
       next.bits := bits
     }
   }
+  def >->(next: Stream[T]) {
+    val streamReg = StreamReg(gen)
+    this >-> streamReg
+    streamReg >> next
+  }
+  def toStream(dummy: Integer = 0): Stream[T] = {
+    val stream = Stream(gen)
+    stream << this
+    stream
+  }
 
-  def isFree(dummy: Int = 0): Bool = (!this.valid) | this.ready
+  def isFree(dummy: Int = 0): Bool = (!this.valid) || this.ready
   override def clone: this.type = { new StreamReg(gen).asInstanceOf[this.type]; }
 }
 
@@ -198,18 +230,18 @@ class DispatcherInOrder[T <: Data](gen: T, n: Int) extends Module {
   val counter = Counter(io.in.fire(), n)._1
 
   if (n == 1) {
-	io.in >> io.out(0)
+    io.in >> io.out(0)
   } else {
-	  io.in.ready := Bool(false)
-	  for (i <- 0 to n - 1) {
-	    io.out(i).bits := io.in.bits
-	    when(UInt(i) != counter) {
-	      io.out(i).valid := Bool(false)
-	    } otherwise {
-	      io.out(i).valid := io.in.valid
-	      io.in.ready := io.out(i).ready
-	    }
-	  }
+    io.in.ready := Bool(false)
+    for (i <- 0 to n - 1) {
+      io.out(i).bits := io.in.bits
+      when(UInt(i) != counter) {
+        io.out(i).valid := Bool(false)
+      } otherwise {
+        io.out(i).valid := io.in.valid
+        io.in.ready := io.out(i).ready
+      }
+    }
   }
 }
 
@@ -240,7 +272,7 @@ class InOrderArbiter[T <: Data](gen: T, n: Int) extends Module {
   val counter = Counter(io.out.fire(), n)._1
 
   if (n == 1) {
-	io.in(0) >> io.out
+    io.in(0) >> io.out
   } else {
     for (i <- 0 to n - 1) {
       io.in(i).ready := Bool(false)
@@ -276,6 +308,44 @@ class Fork[T <: Data](gen: T, n: Int) extends Module {
     linkEnable.map(_ := Bool(true))
   }
 }
+
+class StreamInjector[T <: Data](gen: T) extends Module {
+  val io = new Bundle {
+    val streamSlave = Stream(gen.clone).asSlave()
+    val flowSlave = Flow(gen.clone).asSlave()
+    val flowMaster = Flow(gen.clone).asSlave()
+  }
+  io.streamSlave.ready := Bool(false)
+  when(io.flowSlave.valid) {
+    io.flowMaster << io.flowSlave
+  } otherwise {
+    io.flowMaster << io.streamSlave
+  }
+}
+
+class StreamsInjector[T <: Data](gen: T, streamsCount: Integer) extends Module {
+  val io = new Bundle {
+    val streamsSlave = Vec.fill(streamsCount)(Stream(gen.clone).asSlave())
+    val flowSlave = Flow(gen.clone).asSlave()
+    val flowMaster = Flow(gen.clone).asMaster()
+  }
+  io.flowMaster := io.flowSlave;
+
+  var free = Bool()
+  free := !io.flowSlave.valid
+
+  for (stream <- io.streamsSlave) {
+    stream.ready := Bool(false)
+    when(free && stream.valid) {
+      io.flowMaster.valid := Bool(true)
+      io.flowMaster.bits := stream.bits
+      stream.ready := Bool(true)
+    }
+    free = free && !stream.valid
+  }
+}
+
+
 /*
     val out = Vec.fill(n) { new Stream(gen) }
 
