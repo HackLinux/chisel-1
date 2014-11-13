@@ -143,6 +143,13 @@ class Stream[T <: Data](gen: T) extends DecoupledIO(gen) {
   def </<(previous: Stream[T]) {
     previous >/> this
   }
+  
+  def ff(dummy : Integer = 0) : Stream[T] = {
+     val stage = this.clone
+     stage <-< this
+     stage
+  }
+  
   override def clone: this.type = { new Stream(gen).asInstanceOf[this.type]; }
 }
 /*

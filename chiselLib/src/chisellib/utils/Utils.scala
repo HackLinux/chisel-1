@@ -136,6 +136,15 @@ object NodeAnalyser {
   //    return -1;
   //  }
 
+  
+  def getLatencies(max: Integer ,paths : Node*) : Integer = {
+    var stack = 0;
+    for(i <- (0 to paths.size-2)){
+      stack = stack + getLatency(paths(i),paths(i+1))
+    }
+    stack
+  }
+  
   var trolololCounter = 0
   def getLatency(from: Node, to: Node, max: Integer = 100, topLatency: Integer = 0, walkedNode: Set[Node] = scala.collection.mutable.Set[Node]()): Integer = {
     trolololCounter = 0
@@ -151,44 +160,7 @@ object NodeAnalyser {
     // println("trololol " + trolololCounter)
     ret
   }
-  //  def getLatency_(from: Node, to: Node, max: Integer = 20, topLatency: Integer = 0, walkedNode: Set[Node] = scala.collection.mutable.Set[Node]()): Integer = {
-  //    var latency = topLatency;
-  //    if (walkedNode.contains(to)) return -1;
-  //    walkedNode += to;
-  //    if (from == to) {
-  //      return from match {
-  //        case ram: MemWrite => latency - 1
-  //        case _: Reg => latency - 1
-  //        case _ => latency
-  //      }
-  //    }
-  //
-  //    for (c <- from.consumers) {
-  //      val ret = getLatency_(c, to, max, if (c.isInstanceOf[Reg] || c.isInstanceOf[MemWrite]) latency + 1 else latency, walkedNode);
-  //      if (ret != -1)
-  //        return ret;
-  //    }
-  //    return -1;
-  //  }
-  //    def getLatency_(from: Node, to: Node, max: Integer = 20, topLatency: Integer = 0, walkedNode: Set[Node] = scala.collection.mutable.Set[Node]()): Integer = {
-  //      var latency = topLatency;
-  //      if (walkedNode.contains(to)) return -1;
-  //      walkedNode += to;
-  //      if (from == to) {
-  //        return from match {
-  //          case ram: MemWrite => latency - 1
-  //          case _: Reg => latency - 1
-  //          case _ => latency
-  //        }
-  //      }
-  //  
-  //      for (c <- to.inputs) {
-  //        val ret = getLatency_(from, c, max, if (c.isInstanceOf[Reg] || c.isInstanceOf[MemWrite]) latency + 1 else latency, walkedNode);
-  //        if (ret != -1)
-  //          return ret;
-  //      }
-  //      return -1;
-  //    }
+
 
   def getLatency_(from: Node, to: Node, depthMax: Integer, depth: Integer = 0, walkedView: Map[Node, Int] = Map[Node, Int]()): Integer = {
     //  trolololCounter = trolololCounter + 1

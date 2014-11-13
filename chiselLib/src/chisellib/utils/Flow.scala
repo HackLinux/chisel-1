@@ -24,21 +24,21 @@ class Flow[T <: Data](gen: T) extends ValidIO(gen) {
     valid := next.valid
     bits := next.bits
   }
-  
-    def <<(next: FlowReg[T]) {
+
+  def <<(next: FlowReg[T]) {
     valid := next.valid
     bits := next.bits
   }
-  
+
   def <<(next: DecoupledIO[T]) {
     valid := next.valid
     bits := next.bits
     next.ready := Bool(true)
   }
 
-  def >->(next: ValidIO[T],clk : Clock = null) {
-    val rValid = Reg(init = Bool(false),clock = clk)
-    val rBits = Reg(gen,null.asInstanceOf[T],null.asInstanceOf[T],clock = clk)
+  def >->(next: ValidIO[T], clk: Clock = null) {
+    val rValid = Reg(init = Bool(false), clock = clk)
+    val rBits = Reg(gen, null.asInstanceOf[T], null.asInstanceOf[T], clock = clk)
 
     rValid := this.valid
     rBits := this.bits
@@ -46,8 +46,8 @@ class Flow[T <: Data](gen: T) extends ValidIO(gen) {
     next.valid := rValid
     next.bits := rBits
   }
-  def <-<(precedent: Flow[T],clk : Clock = null) {
-    precedent >-> (this,clk)
+  def <-<(precedent: Flow[T], clk: Clock = null) {
+    precedent >-> (this, clk)
   }
 
   def &(linkEnable: Bool): Flow[T] = {
@@ -62,13 +62,19 @@ class Flow[T <: Data](gen: T) extends ValidIO(gen) {
     next.bits := nextBits
     next
   }
-  def toRegMemory(init : T = null.asInstanceOf[T]) : T = {
-    val reg = if(init == null)  Reg(gen) else RegInit(init)
-    when(this.valid){
+  def toRegMemory(init: T = null.asInstanceOf[T]): T = {
+    val reg = if (init == null) Reg(gen) else RegInit(init)
+    when(this.valid) {
       reg := bits
     }
     reg
   }
+  def ff(dummy : Int = 0) = {
+    val next = clone
+    next <-< this
+    next
+  }
+
   override def clone: Flow.this.type =
     try {
       super.clone()
